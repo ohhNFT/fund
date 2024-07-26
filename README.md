@@ -43,6 +43,12 @@ struct Contribution {
 }
 ```
 
+To contribute to a campaign, users can call `Contribute {}` with funds in USDC attached to the transaction.
+
+## Contribution Badges
+
+When a campaign ends, a contribution badge is minted for all contributors on Stargaze using [Stargaze Badges](https://badges.stargaze.zone/).
+
 ## Typing Particularities
 
 ### Links

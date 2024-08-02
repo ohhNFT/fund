@@ -4,6 +4,7 @@ version    = "0.1.0"
 edition    = "2021"
 homepage   = "https://ohhnft.io"
 repository = "https://github.com/ohhnft/kickstarter"
+license    = "ALL RIGHTS RESERVED"
 
 [lib]
 crate-type = ["cdylib"]

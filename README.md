@@ -1,5 +1,7 @@
 # OhhNFT Kickstarter Spec
 
+Copyright © 2024 OhhNFT — All Rights Reserved
+
 **kickstarter** is a Stargaze smart contract that helps new projects and communities raise money in exchange for early perks, future tokens and virtually anything else.
 
 ## Campaigns

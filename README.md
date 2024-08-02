@@ -15,6 +15,7 @@ struct Campaign {
   pub name: String,
   pub description: Markdown,
   pub end_time: Timestamp,
+  pub goal: Uint128,
   pub links: Vec<Link>,
   pub tiers: Vec<Tier>,
   pub creator: Addr,
@@ -40,16 +41,11 @@ Contributions to a campaign are stored as follows:
 
 ```rust
 struct Contribution {
-  pub contributor: Addr,
   pub amount: Uint128
 }
 ```
 
-To contribute to a campaign, users can call `Contribute {}` with funds in USDC attached to the transaction.
-
-## Contribution Badges
-
-When a campaign ends, a contribution badge is minted for all contributors on Stargaze using [Stargaze Badges](https://badges.stargaze.zone/).
+To contribute to a campaign, users can call `Contribute {}` with funds in USDC attached to the transaction. The key to the `Contribution` Item will be their address.
 
 ## Typing Particularities
 

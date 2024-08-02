@@ -65,7 +65,7 @@ While a campaign is running, users who contribute will receive an equal amount o
 
 Once the campaign has ended, the creator can call `EndCampaign {}` to retrieve the funds locked in the contract.
 
-### SHA256 checksum
+## SHA256 checksum
 
 ```
 26d6ec85cdb54895afbdca245550edff220f03f430c07db1edca255d5c1111d2  kickstarter.wasm

@@ -1,8 +1,10 @@
 #![cfg(test)]
 
-use cosmwasm_std::{coin, coins, Addr, Empty, Timestamp, Uint128};
-use cw20::{Cw20ExecuteMsg, MinterResponse};
+use cosmwasm_std::{coin, coins, Addr, Binary, Coin, Empty, Timestamp, Uint128};
+use cw20::{BalanceResponse, MinterResponse};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
+
+use crate::msg::ContributionResponse;
 
 pub fn contract_cw20() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
@@ -22,9 +24,6 @@ pub fn contract_kickstarter() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
-const CW20: &str = "contract0";
-const KICKSTARTER: &str = "contract1";
-
 const INIT: &str = "init";
 
 // Initial contract setup
@@ -43,9 +42,7 @@ fn setup_contracts() -> (App, Addr, Addr, Addr, Addr) {
     let admin = router.api().addr_make("admin");
     let user = router.api().addr_make("user");
 
-    router
-        .send_tokens(init, admin.clone(), &init_funds)
-        .unwrap();
+    router.send_tokens(init, user.clone(), &init_funds).unwrap();
 
     // Set up CW20 contract
     let cw20_id = router.store_code(contract_cw20());
@@ -120,7 +117,7 @@ fn proper_initialization() {
 
 #[test]
 fn try_contribute() {
-    let (mut router, cw20_addr, kickstarter_addr, _, user) = setup_contracts();
+    let (mut router, _, kickstarter_addr, _, user) = setup_contracts();
 
     // Contribute to the campaign
     let msg = crate::contract::sv::ExecMsg::Contribute {};
@@ -143,7 +140,7 @@ fn try_contribute() {
     assert_eq!(campaign.minimum_contribution.unwrap(), Uint128::new(100));
 
     // Ensure the user is now a contributor
-    let contributors: Vec<Addr> = router
+    let contributors: Vec<ContributionResponse> = router
         .wrap()
         .query_wasm_smart(
             kickstarter_addr.clone(),
@@ -151,7 +148,7 @@ fn try_contribute() {
         )
         .unwrap();
     assert_eq!(contributors.len(), 1);
-    assert_eq!(contributors[0], user);
+    assert_eq!(contributors[0].contributor, user);
 
     // Ensure the user's contribution is recorded
     let contribution: Uint128 = router
@@ -164,18 +161,6 @@ fn try_contribute() {
         )
         .unwrap();
     assert_eq!(contribution, Uint128::new(100));
-
-    // Ensure the user's balance is updated
-    let user_balance: Uint128 = router
-        .wrap()
-        .query_wasm_smart(
-            cw20_addr.clone(),
-            &cw20::Cw20QueryMsg::Balance {
-                address: user.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(user_balance, Uint128::new(0));
 }
 
 #[test]
@@ -210,7 +195,7 @@ fn try_refund() {
         .unwrap();
 
     // Ensure the user's balance is updated
-    let user_balance: Uint128 = router
+    let user_balance: BalanceResponse = router
         .wrap()
         .query_wasm_smart(
             cw20_addr.clone(),
@@ -219,28 +204,27 @@ fn try_refund() {
             },
         )
         .unwrap();
-    assert_eq!(user_balance, Uint128::new(0));
+    assert_eq!(user_balance.balance, Uint128::new(100));
 
     // Refund the user
-    let msg = crate::contract::sv::ExecMsg::Refund {};
+    let msg = cw20::Cw20ExecuteMsg::Send {
+        contract: kickstarter_addr.to_string(),
+        amount: Uint128::from(100u128),
+        msg: Binary::new(b"{}".to_vec()),
+    };
     router
-        .execute_contract(user.clone(), kickstarter_addr.clone(), &msg, &[])
+        .execute_contract(user.clone(), cw20_addr.clone(), &msg, &[])
         .unwrap();
 
     // Ensure the user's balance is refunded
-    let user_balance: Uint128 = router
+    let user_balance: Coin = router
         .wrap()
-        .query_wasm_smart(
-            cw20_addr.clone(),
-            &cw20::Cw20QueryMsg::Balance {
-                address: user.to_string(),
-            },
-        )
+        .query_balance(user, "ustars".to_string())
         .unwrap();
-    assert_eq!(user_balance, Uint128::new(100));
+    assert_eq!(user_balance.amount, Uint128::new(2000));
 
     // Ensure the user is no longer a contributor
-    let contributors: Vec<Addr> = router
+    let contributors: Vec<ContributionResponse> = router
         .wrap()
         .query_wasm_smart(
             kickstarter_addr.clone(),
@@ -252,11 +236,53 @@ fn try_refund() {
 
 #[test]
 pub fn try_refund_without_contribution() {
-    let (mut router, _, kickstarter_addr, _, user) = setup_contracts();
+    let (mut router, cw20_addr, kickstarter_addr, _, user) = setup_contracts();
 
     // Refund the user
-    let msg = crate::contract::sv::ExecMsg::Refund {};
-    let res = router.execute_contract(user.clone(), kickstarter_addr.clone(), &msg, &[]);
+    let msg = cw20::Cw20ExecuteMsg::Send {
+        contract: kickstarter_addr.to_string(),
+        amount: Uint128::from(100u128),
+        msg: Binary::new(b"{}".to_vec()),
+    };
+    let res = router.execute_contract(user.clone(), cw20_addr.clone(), &msg, &[]);
+
+    assert!(res.is_err());
+}
+
+#[test]
+pub fn try_refund_too_many_tokens() {
+    let (mut router, cw20_addr, kickstarter_addr, _, user) = setup_contracts();
+
+    // Contribute to the campaign
+    let msg = crate::contract::sv::ExecMsg::Contribute {};
+    router
+        .execute_contract(
+            user.clone(),
+            kickstarter_addr.clone(),
+            &msg,
+            &[coin(100, "ustars".to_string())],
+        )
+        .unwrap();
+
+    // Ensure the user's balance is updated
+    let user_balance: BalanceResponse = router
+        .wrap()
+        .query_wasm_smart(
+            cw20_addr.clone(),
+            &cw20::Cw20QueryMsg::Balance {
+                address: user.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(user_balance.balance, Uint128::new(100));
+
+    // Refund the user
+    let msg = cw20::Cw20ExecuteMsg::Send {
+        contract: kickstarter_addr.to_string(),
+        amount: Uint128::from(101u128),
+        msg: Binary::new(b"{}".to_vec()),
+    };
+    let res = router.execute_contract(user.clone(), cw20_addr.clone(), &msg, &[]);
 
     assert!(res.is_err());
 }
@@ -277,7 +303,7 @@ pub fn try_end_campaign() {
         .unwrap();
 
     // Ensure the user's balance is updated
-    let user_balance: Uint128 = router
+    let user_balance: BalanceResponse = router
         .wrap()
         .query_wasm_smart(
             cw20_addr.clone(),
@@ -286,10 +312,10 @@ pub fn try_end_campaign() {
             },
         )
         .unwrap();
-    assert_eq!(user_balance, Uint128::new(0));
+    assert_eq!(user_balance.balance, Uint128::new(100));
 
     // Push time to after campaign end
-    add_block_time(&mut router, 86500);
+    add_block_time(&mut router, 86400);
 
     // End the campaign
     let msg = crate::contract::sv::ExecMsg::EndCampaign {};
@@ -298,17 +324,11 @@ pub fn try_end_campaign() {
         .unwrap();
 
     // Ensure the admin has received the campaign balance
-    let admin_balance: Uint128 = router
+    let admin_balance: Coin = router
         .wrap()
-        .query_wasm_smart(
-            cw20_addr.clone(),
-            &cw20::Cw20QueryMsg::Balance {
-                address: admin.to_string(),
-            },
-        )
+        .query_balance(admin, "ustars".to_string())
         .unwrap();
-
-    assert_eq!(admin_balance, Uint128::new(100));
+    assert_eq!(admin_balance.amount, Uint128::new(100));
 }
 
 #[test]

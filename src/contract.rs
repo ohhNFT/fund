@@ -1,5 +1,5 @@
 use crate::{
-    msg::ConfigResponse,
+    msg::{ConfigResponse, ContributionResponse},
     storage::{Campaign, CampaignMeta, Link},
 };
 use cosmwasm_std::{
@@ -172,21 +172,32 @@ impl KickstarterContract {
     }
 
     #[sv::msg(exec)]
-    pub fn refund(&self, context: InstantiateCtx) -> StdResult<Response> {
+    pub fn receive(
+        &self,
+        context: InstantiateCtx,
+        sender: String,
+        amount: Uint128,
+    ) -> StdResult<Response> {
+        let sender = context.deps.api.addr_validate(&sender)?;
+
         let contribution = self
             .contributions
-            .may_load(context.deps.storage, context.info.sender.clone())?;
+            .may_load(context.deps.storage, sender.clone())?;
 
         let contribution = match contribution {
             Some(contribution) => contribution,
             None => return Err(StdError::generic_err("No contribution found")),
         };
 
+        if amount > contribution {
+            return Err(StdError::generic_err(
+                "Amount sent is greater than contribution",
+            ));
+        }
+
         let cw20_address = self.cw20_address.load(context.deps.storage)?;
 
-        let cw20_burn_msg = cw20::Cw20ExecuteMsg::Burn {
-            amount: contribution,
-        };
+        let cw20_burn_msg = cw20::Cw20ExecuteMsg::Burn { amount };
 
         let cw20_msg = match serde_json::to_vec(&cw20_burn_msg) {
             Ok(vec) => Binary::from(vec),
@@ -199,10 +210,29 @@ impl KickstarterContract {
             funds: vec![],
         };
 
-        self.contributions
-            .remove(context.deps.storage, context.info.sender.clone());
+        if amount < contribution {
+            self.contributions
+                .update(context.deps.storage, sender.clone(), |old| match old {
+                    Some(prev) => Ok(prev - amount),
+                    None => Err(StdError::generic_err(
+                        "Error occurred during contribution update",
+                    )),
+                })?;
+        } else {
+            self.contributions
+                .remove(context.deps.storage, sender.clone());
+        }
+
+        // Send tokens back to user
+        let msg = BankMsg::Send {
+            to_address: sender.to_string(),
+            amount: vec![coin(amount.u128(), self.denom.load(context.deps.storage)?)],
+        };
+
+        let send_msg = SubMsg::new(msg);
 
         Ok(Response::default()
+            .add_submessage(send_msg)
             .add_message(burn_cw20)
             .add_attribute("action", "refund")
             .add_attribute("contributor", context.info.sender.to_string())
@@ -218,7 +248,7 @@ impl KickstarterContract {
             return Err(StdError::generic_err("Unauthorized"));
         }
 
-        if campaign.end_time <= context.env.block.time {
+        if campaign.end_time >= context.env.block.time {
             return Err(StdError::generic_err("Campaign has not ended"));
         }
 
@@ -259,7 +289,7 @@ impl KickstarterContract {
     }
 
     #[sv::msg(query)]
-    pub fn contributions(&self, context: QueryCtx) -> StdResult<Vec<(Addr, Uint128)>> {
+    pub fn contributions(&self, context: QueryCtx) -> StdResult<Vec<ContributionResponse>> {
         self.contributions
             .range(
                 context.deps.storage,
@@ -267,16 +297,23 @@ impl KickstarterContract {
                 None,
                 cosmwasm_std::Order::Ascending,
             )
+            .map(|item| {
+                item.map(|(contributor, amount)| ContributionResponse {
+                    contributor,
+                    amount,
+                })
+            })
             .collect()
     }
 
     #[sv::msg(query)]
     pub fn contribution(&self, context: QueryCtx, address: String) -> StdResult<Uint128> {
-        self.contributions
-            .may_load(
+        Ok(self
+            .contributions
+            .load(
                 context.deps.storage,
                 context.deps.api.addr_validate(&address)?,
             )
-            .map(|opt| opt.unwrap_or_default())
+            .unwrap_or(Uint128::zero()))
     }
 }

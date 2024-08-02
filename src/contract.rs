@@ -2,7 +2,9 @@ use crate::{
     msg::ConfigResponse,
     storage::{Campaign, CampaignMeta, Link},
 };
-use cosmwasm_std::{Addr, Binary, Response, StdError, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{
+    coin, Addr, BankMsg, Binary, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+};
 use cw_storage_plus::{Item, Map};
 use sylvia::{
     contract, entry_points,
@@ -43,6 +45,7 @@ impl KickstarterContract {
             description: campaign.description,
             end_time: campaign.end_time,
             links: campaign.links,
+            goal: campaign.goal,
             tiers: campaign.tiers,
             creator: context.info.sender,
             minimum_contribution: campaign.minimum_contribution,
@@ -96,6 +99,10 @@ impl KickstarterContract {
 
         if campaign.end_time < context.env.block.time {
             return Err(StdError::generic_err("Campaign has ended"));
+        }
+
+        if context.info.funds.is_empty() {
+            return Err(StdError::generic_err("No funds sent"));
         }
 
         let contribution = context.info.funds[0].clone();
@@ -164,6 +171,7 @@ impl KickstarterContract {
             .add_attribute("contribution", new_contribution.to_string()))
     }
 
+    #[sv::msg(exec)]
     pub fn refund(&self, context: InstantiateCtx) -> StdResult<Response> {
         let contribution = self
             .contributions
@@ -201,6 +209,42 @@ impl KickstarterContract {
             .add_attribute("contribution", contribution.to_string()))
     }
 
+    #[sv::msg(exec)]
+    pub fn end_campaign(&self, context: InstantiateCtx) -> StdResult<Response> {
+        let campaign = self.campaign.load(context.deps.storage)?;
+        let denom = self.denom.load(context.deps.storage)?;
+
+        if campaign.creator != context.info.sender {
+            return Err(StdError::generic_err("Unauthorized"));
+        }
+
+        if campaign.end_time <= context.env.block.time {
+            return Err(StdError::generic_err("Campaign has not ended"));
+        }
+
+        let contract_address = context.env.contract.address.to_string();
+        let contract_balance = context
+            .deps
+            .querier
+            .query_balance(&contract_address, denom.clone())
+            .map_err(|error| error)?;
+
+        let msg = BankMsg::Send {
+            to_address: context.info.sender.to_string(),
+            amount: vec![coin(contract_balance.amount.u128(), denom.clone())],
+        };
+
+        let send_msg = SubMsg::new(msg);
+
+        self.contributions.clear(context.deps.storage);
+
+        Ok(Response::default()
+            .add_submessage(send_msg)
+            .add_attribute("action", "end_campaign")
+            .add_attribute("campaign", campaign.name)
+            .add_attribute("total_contributions", contract_balance.amount.to_string()))
+    }
+
     #[sv::msg(query)]
     pub fn info(&self, context: QueryCtx) -> StdResult<Campaign> {
         self.campaign.load(context.deps.storage)
@@ -224,5 +268,15 @@ impl KickstarterContract {
                 cosmwasm_std::Order::Ascending,
             )
             .collect()
+    }
+
+    #[sv::msg(query)]
+    pub fn contribution(&self, context: QueryCtx, address: String) -> StdResult<Uint128> {
+        self.contributions
+            .may_load(
+                context.deps.storage,
+                context.deps.api.addr_validate(&address)?,
+            )
+            .map(|opt| opt.unwrap_or_default())
     }
 }

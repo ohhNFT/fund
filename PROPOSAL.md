@@ -49,6 +49,8 @@ To start a new campaign, users can deploy their own contract using `Instantiate`
 }
 ```
 
+A fee has to be attached to the instantiate message. Users can query the fee amount by querying `Fee {}`. On testnet, this fee is `100stars`/`100000000ustars`.
+
 For `denom`, we recommend USDC on Stargaze. On mainnet, the IBC denom is:
 
 ```
@@ -68,5 +70,5 @@ Once the campaign has ended, the creator can call `EndCampaign {}` to retrieve t
 ## SHA256 checksum
 
 ```
-26d6ec85cdb54895afbdca245550edff220f03f430c07db1edca255d5c1111d2  kickstarter.wasm
+342301869c54100d7b71b1f6d7d4f20d37d51e2bf618c270af6f9de74cd81fad  kickstarter.wasm
 ```

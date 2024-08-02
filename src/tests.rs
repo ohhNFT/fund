@@ -27,7 +27,7 @@ pub fn contract_kickstarter() -> Box<dyn Contract<Empty>> {
 const INIT: &str = "init";
 
 // Initial contract setup
-fn setup_contracts() -> (App, Addr, Addr, Addr, Addr) {
+fn setup_contracts() -> (App, Addr, Addr, Addr, Addr, Addr) {
     let init = Addr::unchecked(INIT);
 
     let init_funds = coins(2000, "ustars");
@@ -41,8 +41,14 @@ fn setup_contracts() -> (App, Addr, Addr, Addr, Addr) {
 
     let admin = router.api().addr_make("admin");
     let user = router.api().addr_make("user");
+    let fee = router.api().addr_make("fee");
 
-    router.send_tokens(init, user.clone(), &init_funds).unwrap();
+    router
+        .send_tokens(init.clone(), user.clone(), &coins(1000, "ustars"))
+        .unwrap();
+    router
+        .send_tokens(init, admin.clone(), &coins(1000, "ustars"))
+        .unwrap();
 
     // Set up CW20 contract
     let cw20_id = router.store_code(contract_cw20());
@@ -82,7 +88,7 @@ fn setup_contracts() -> (App, Addr, Addr, Addr, Addr) {
             kickstarter_id,
             admin.clone(),
             &msg,
-            &[],
+            &coins(1000, "ustars"),
             "KICKSTARTER",
             Some(admin.to_string()),
         )
@@ -100,7 +106,7 @@ fn setup_contracts() -> (App, Addr, Addr, Addr, Addr) {
     block.time = Timestamp::from_seconds(1);
     router.set_block(block);
 
-    (router, cw20_addr, kickstarter_addr, admin, user)
+    (router, cw20_addr, kickstarter_addr, admin, user, fee)
 }
 
 // Update block time
@@ -117,7 +123,7 @@ fn proper_initialization() {
 
 #[test]
 fn try_contribute() {
-    let (mut router, _, kickstarter_addr, _, user) = setup_contracts();
+    let (mut router, _, kickstarter_addr, _, user, _) = setup_contracts();
 
     // Contribute to the campaign
     let msg = crate::contract::sv::ExecMsg::Contribute {};
@@ -165,7 +171,7 @@ fn try_contribute() {
 
 #[test]
 fn try_contribute_below_minimum() {
-    let (mut router, _, kickstarter_addr, _, user) = setup_contracts();
+    let (mut router, _, kickstarter_addr, _, user, _) = setup_contracts();
 
     // Contribute to the campaign
     let msg = crate::contract::sv::ExecMsg::Contribute {};
@@ -181,7 +187,7 @@ fn try_contribute_below_minimum() {
 
 #[test]
 fn try_refund() {
-    let (mut router, cw20_addr, kickstarter_addr, _, user) = setup_contracts();
+    let (mut router, cw20_addr, kickstarter_addr, _, user, _) = setup_contracts();
 
     // Contribute to the campaign
     let msg = crate::contract::sv::ExecMsg::Contribute {};
@@ -221,7 +227,7 @@ fn try_refund() {
         .wrap()
         .query_balance(user, "ustars".to_string())
         .unwrap();
-    assert_eq!(user_balance.amount, Uint128::new(2000));
+    assert_eq!(user_balance.amount, Uint128::new(1000));
 
     // Ensure the user is no longer a contributor
     let contributors: Vec<ContributionResponse> = router
@@ -236,7 +242,7 @@ fn try_refund() {
 
 #[test]
 pub fn try_refund_without_contribution() {
-    let (mut router, cw20_addr, kickstarter_addr, _, user) = setup_contracts();
+    let (mut router, cw20_addr, kickstarter_addr, _, user, _) = setup_contracts();
 
     // Refund the user
     let msg = cw20::Cw20ExecuteMsg::Send {
@@ -251,7 +257,7 @@ pub fn try_refund_without_contribution() {
 
 #[test]
 pub fn try_refund_too_many_tokens() {
-    let (mut router, cw20_addr, kickstarter_addr, _, user) = setup_contracts();
+    let (mut router, cw20_addr, kickstarter_addr, _, user, _) = setup_contracts();
 
     // Contribute to the campaign
     let msg = crate::contract::sv::ExecMsg::Contribute {};
@@ -289,7 +295,7 @@ pub fn try_refund_too_many_tokens() {
 
 #[test]
 pub fn try_end_campaign() {
-    let (mut router, cw20_addr, kickstarter_addr, admin, user) = setup_contracts();
+    let (mut router, cw20_addr, kickstarter_addr, admin, user, fee) = setup_contracts();
 
     // Contribute to the campaign
     let msg = crate::contract::sv::ExecMsg::Contribute {};
@@ -328,12 +334,19 @@ pub fn try_end_campaign() {
         .wrap()
         .query_balance(admin, "ustars".to_string())
         .unwrap();
-    assert_eq!(admin_balance.amount, Uint128::new(100));
+    assert_eq!(admin_balance.amount, Uint128::new(95));
+
+    // Ensure the fee account has received 5ustars
+    let fee_balance: Coin = router
+        .wrap()
+        .query_balance(fee, "ustars".to_string())
+        .unwrap();
+    assert_eq!(fee_balance.amount, Uint128::new(1005));
 }
 
 #[test]
 pub fn try_end_campaign_before_end() {
-    let (mut router, _, kickstarter_addr, admin, _) = setup_contracts();
+    let (mut router, _, kickstarter_addr, admin, _, _) = setup_contracts();
 
     // End the campaign
     let msg = crate::contract::sv::ExecMsg::EndCampaign {};

@@ -49,8 +49,6 @@ To start a new campaign, users can deploy their own contract using `Instantiate`
 }
 ```
 
-A fee has to be attached to the instantiate message. Users can query the fee amount by querying `Fee {}`. On testnet, this fee is `100stars`/`100000000ustars`.
-
 For `denom`, we recommend USDC on Stargaze. On mainnet, the IBC denom is:
 
 ```

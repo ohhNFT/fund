@@ -1,12 +1,12 @@
-# OhhNFT Kickstarter Spec
+# OhhNFT Fund Spec
 
 Copyright © 2024 OhhNFT — All Rights Reserved
 
-**kickstarter** is a Stargaze smart contract that helps new projects and communities raise money in exchange for early perks, future tokens and virtually anything else.
+**fund** is a Stargaze smart contract that helps new projects and communities raise money in exchange for early perks, future tokens and virtually anything else.
 
 ## Campaigns
 
-**kickstarter** is meant to be deployed as a standalone contrarct for each project. When creating a new campaign, a project must set an end time no further than 1 year into the future.
+**fund** is meant to be deployed as a standalone contrarct for each project. When creating a new campaign, a project must set an end time no further than 1 year into the future.
 
 The campaign's information is stored in the configuration of the contract as follows:
 

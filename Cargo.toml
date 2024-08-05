@@ -1,9 +1,9 @@
 [package]
-name = "kickstarter"
+name = "fund"
 version    = "0.1.0"
 edition    = "2021"
 homepage   = "https://ohhnft.io"
-repository = "https://github.com/ohhnft/kickstarter"
+repository = "https://github.com/ohhnft/fund"
 license    = "ALL RIGHTS RESERVED"
 
 [lib]

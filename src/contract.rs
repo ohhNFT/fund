@@ -1,5 +1,5 @@
 use crate::{
-    msg::{ConfigResponse, ContributionResponse, FeeInfoResponse},
+    msg::{ConfigResponse, ContributionResponse},
     storage::{Campaign, CampaignMeta, Link},
 };
 use cosmwasm_std::{
@@ -19,18 +19,12 @@ pub struct KickstarterContract {
 }
 
 // Multitest
-// pub const FEE_AMOUNT: u128 = 1000;
-// pub const FEE_DENOM: &str = "ustars";
-// pub const FEE_ADDRESS: &str = "cosmwasm1hqxd4t5mxg4m523cl5uk9xtc9fxvdd9qenm8ln9me3she99yvqnqxhpk8e";
+pub const FEE_ADDRESS: &str = "cosmwasm1hqxd4t5mxg4m523cl5uk9xtc9fxvdd9qenm8ln9me3she99yvqnqxhpk8e";
 
 // Testnet
-pub const FEE_AMOUNT: u128 = 100000000;
-pub const FEE_DENOM: &str = "ustars";
-pub const FEE_ADDRESS: &str = "stars1ggyrk0er22cpn8txw7gxyhvq2zn8dw598538jm";
+// pub const FEE_ADDRESS: &str = "stars1ggyrk0er22cpn8txw7gxyhvq2zn8dw598538jm";
 
 // Mainnet
-// pub const FEE_AMOUNT: u128 = 100000000;
-// pub const FEE_DENOM: &str = "ustars";
 // pub const FEE_ADDRESS: &str = "stars1ggyrk0er22cpn8txw7gxyhvq2zn8dw598538jm";
 
 #[entry_points]
@@ -55,23 +49,6 @@ impl KickstarterContract {
     ) -> StdResult<Response> {
         let cw20_address = context.deps.api.addr_validate(&cw20_address)?;
 
-        if context.info.funds.is_empty() {
-            return Err(StdError::generic_err("No funds sent"));
-        }
-        if context.info.funds[0].denom != FEE_DENOM {
-            return Err(StdError::generic_err("Invalid fee denom"));
-        }
-        if context.info.funds[0].amount.u128() != FEE_AMOUNT {
-            return Err(StdError::generic_err("Invalid fee amount"));
-        }
-
-        let msg = BankMsg::Send {
-            to_address: FEE_ADDRESS.to_string(),
-            amount: vec![context.info.funds[0].clone()],
-        };
-
-        let send_msg = SubMsg::new(msg);
-
         let campaign = Campaign {
             name: campaign.name,
             description: campaign.description,
@@ -89,7 +66,6 @@ impl KickstarterContract {
         self.campaign.save(context.deps.storage, &campaign)?;
 
         Ok(Response::default()
-            .add_submessage(send_msg)
             .add_attribute("action", "instantiate")
             .add_attribute("cw20_contract", cw20_address.to_string())
             .add_attribute("denom", denom)
@@ -321,14 +297,6 @@ impl KickstarterContract {
     #[sv::msg(query)]
     pub fn info(&self, context: QueryCtx) -> StdResult<Campaign> {
         self.campaign.load(context.deps.storage)
-    }
-
-    #[sv::msg(query)]
-    pub fn fee(&self, context: QueryCtx) -> StdResult<FeeInfoResponse> {
-        Ok(FeeInfoResponse {
-            fee: coin(FEE_AMOUNT, FEE_DENOM),
-            address: context.deps.api.addr_validate(FEE_ADDRESS)?,
-        })
     }
 
     #[sv::msg(query)]

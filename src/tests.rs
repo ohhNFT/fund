@@ -88,7 +88,7 @@ fn setup_contracts() -> (App, Addr, Addr, Addr, Addr, Addr) {
             kickstarter_id,
             admin.clone(),
             &msg,
-            &coins(1000, "ustars"),
+            &[],
             "KICKSTARTER",
             Some(admin.to_string()),
         )
@@ -334,14 +334,14 @@ pub fn try_end_campaign() {
         .wrap()
         .query_balance(admin, "ustars".to_string())
         .unwrap();
-    assert_eq!(admin_balance.amount, Uint128::new(95));
+    assert_eq!(admin_balance.amount, Uint128::new(1095));
 
     // Ensure the fee account has received 5ustars
     let fee_balance: Coin = router
         .wrap()
         .query_balance(fee, "ustars".to_string())
         .unwrap();
-    assert_eq!(fee_balance.amount, Uint128::new(1005));
+    assert_eq!(fee_balance.amount, Uint128::new(5));
 }
 
 #[test]

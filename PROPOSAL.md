@@ -2,11 +2,11 @@
 
 We are proposing to upload the code for the OhhFund contract to Stargaze Mainnet.
 
-The source code is available at: https://github.com/OhhNFT/kickstarter
+The source code is available at: https://github.com/OhhNFT/fund
 
 ## Usecase
 
-OhhFund allows projects, communities and any other organization to raise funds in a way similar to the Kickstarter platform (hence the contract's internal name).
+OhhFund allows projects, communities and any other organization to raise funds in a way similar to the Kickstarter platform.
 
 ## Starting a campaign
 
@@ -70,5 +70,5 @@ Once the campaign has ended, the creator can call `EndCampaign {}` to retrieve t
 ## SHA256 checksum
 
 ```
-342301869c54100d7b71b1f6d7d4f20d37d51e2bf618c270af6f9de74cd81fad  kickstarter.wasm
+0a8ef238c27f76063ac5ba2fab5c288eb2ff821b0d76b05bc5072527c1712ef9  fund.wasm
 ```
